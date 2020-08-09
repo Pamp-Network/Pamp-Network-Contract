@@ -1,6 +1,81 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.0;
+pragma solidity ^0.6.9;
+
+/**
+ * @dev Interface of the ERC20 standard as defined in the EIP.
+ */
+interface IERC20 {
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `recipient`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `sender` to `recipient` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+}
 
 abstract contract Context {
     function _msgSender() internal view virtual returns (address payable) {
@@ -12,8 +87,6 @@ abstract contract Context {
         return msg.data;
     }
 }
-
-//Note that assert() is now used because the try/catch mechanism in the Pamp.sol contract does not revert on failure with require();
 
 /**
  * @dev Wrappers over Solidity's arithmetic operations with added overflow
@@ -40,7 +113,7 @@ library SafeMath {
      */
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
-        assert(c >= a/*, "SafeMath: addition overflow"*/);
+        require(c >= a, "SafeMath: addition overflow");
 
         return c;
     }
@@ -68,7 +141,7 @@ library SafeMath {
      * - Subtraction cannot overflow.
      */
     function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        assert(b <= a/*, errorMessage*/);
+        require(b <= a, errorMessage);
         uint256 c = a - b;
 
         return c;
@@ -92,7 +165,7 @@ library SafeMath {
         }
 
         uint256 c = a * b;
-        assert(c / a == b/*, "SafeMath: multiplication overflow"*/);
+        require(c / a == b, "SafeMath: multiplication overflow");
 
         return c;
     }
@@ -124,7 +197,7 @@ library SafeMath {
      * - The divisor cannot be zero.
      */
     function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        assert(b > 0/*, errorMessage*/);
+        require(b > 0, errorMessage);
         uint256 c = a / b;
         // assert(a == b * c + a % b); // There is no case in which this doesn't hold
 
@@ -158,13 +231,13 @@ library SafeMath {
      * - The divisor cannot be zero.
      */
     function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        assert(b != 0/*, errorMessage*/);
+        require(b != 0, errorMessage);
         return a % b;
     }
 }
 
-abstract contract Ownable is Context {
-    address public _owner;
+contract Ownable is Context {
+    address private _owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -188,7 +261,7 @@ abstract contract Ownable is Context {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        assert(_owner == _msgSender()/*, "Ownable: caller is not the owner"*/);
+        require(_owner == _msgSender(), "Ownable: caller is not the owner");
         _;
     }
 
@@ -209,33 +282,16 @@ abstract contract Ownable is Context {
      * Can only be called by the current owner.
      */
     function transferOwnership(address newOwner) public virtual onlyOwner {
-        assert(newOwner != address(0)/*, "Ownable: new owner is the zero address"*/);
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
 }
 
-// Contract used to calculate stakes. Unused currently.
-
-abstract contract CalculatorInterface {
-    function calculateNumTokens(uint numerator, uint denominator, uint price, uint volume, uint _streak, uint256 balance, uint256 daysStaked, address stakerAddress, uint256 totalSupply) public view virtual returns (uint256);
-    function negativeDayCallback(int numerator, uint denominator, uint256 price, uint256 volume) public virtual;
-    function iterativelyCalculateOwedRewards(uint stakerLastTimestamp, uint stakerStartTimestamp, uint balance, address stakerAddress, uint totalSupply) public virtual view returns (uint256);
+abstract contract StakePampToken {
+    function transferHook(address sender, address recipient, uint256 amount, uint256 senderBalance, uint256 recipientBalance) external virtual returns (uint256, uint256, uint256);
+    function updateMyStakes(address staker, uint256 balance, uint256 totalSupply) external virtual returns (uint256);
 }
-
-
-// Parent token contract, see Pamp.sol
-abstract contract PampToken {
-    function balanceOf(address account) public view virtual returns (uint256);
-    function _burn(address account, uint256 amount) external virtual;
-    function mint(address account, uint256 amount) public virtual;
-}
-
-abstract contract PreviousContract {
-    function resetStakeTimeMigrateState(address addr) external virtual returns (uint256 startTimestamp, uint256 lastTimestamp);
-    function getWhitelist(address addr) external virtual view returns (string memory);
-}
-
 
 
 /**
@@ -247,746 +303,301 @@ abstract contract PreviousContract {
  * a function of its price, percent increase, volume, any positive price streaks,
  * and the amount of time any given holder has been holding.
  * In the first iteration, the dev team acts as the price oracle, but in the future, we plan to integrate a Chainlink price oracle.
- * This contract is the staking contract for the project and is upgradeable by the owner.
  */
-contract PampStaking is Ownable {
+contract PampToken is Ownable, IERC20 {
     using SafeMath for uint256;
+
+    mapping (address => uint256) private _balances;
+
+    mapping (address => mapping (address => uint256)) private _allowances;
     
-    // A 'staker' is an individual who holds the minimum staking amount in his address.
+    uint256 private _totalSupply;
     
-    struct staker {
-        uint startTimestamp;    // When the staking started in unix time (block.timesamp)
-        uint lastTimestamp;     // When the last staking reward was claimed in unix time (block.timestamp)
-        bool hasMigrated;       // Has the staker migrated from the previous contract?
-    }
+    string public constant _name = "Pamp Network";
+    string public constant _symbol = "PAMP";
+    uint8 public constant _decimals = 18;
     
-    struct update {             // Price updateState
-        uint timestamp;         // Last update timestamp, unix time
-        uint numerator;         // Numerator of percent change (1% increase = 1/100)
-        uint denominator;       // Denominator of percent change
-        uint price;         // In USD. 0001 is $0.001, 1000 is $1.000, 1001 is $1.001, etc
-        uint volume;        // In whole USD (100 = $100)
-        uint streak;        // We save the current streak to use later
-    }
+    StakePampToken public _stakingContract;
     
-    PampToken public token;     // ERC20 token contract that uses this upgradeable contract for staking and burning
+    bool private _stakingEnabled;
     
-    modifier onlyToken() {
-        assert(_msgSender() == address(token)/*, "Caller must be PAMP token contract."*/);
+    modifier onlyStakingContract() {
+        require(msg.sender == address(_stakingContract), "Ownable: caller is not the staking contract");
         _;
     }
     
-    modifier onlyNextStakingContract() {    // Caller must be the next staking contract
-        assert(_msgSender() == nextStakingContract);
-        _;
-    }
+    event ErrorMessage(string errorMessage);
     
-    modifier onlyOracle() {
-        assert(_msgSender() == oracle);
-        _;
-    }
-
-    
-    mapping (address => staker) public stakers;        // Mapping of all individuals staking/holding tokens greater than minStake
-    
-    mapping (address => string) public whitelist;      // Mapping of all addresses that do not burn tokens on receive and send (generally other smart contracts). Mapping of address to reason (string)
-    
-    mapping (address => uint256) public blacklist;     // Mapping of all addresses that receive a specific token burn when receiving. Mapping of address to percent burn (uint256)
-    
-    mapping (address => string) public uniwhitelist; // Mapping of all addresses that do not burn tokens when sending to or selling on Uniswap. Mapping of address to reason (string)
-    
-
-    bool public enableBurns; // Enable burning on transfer or fee on transfer
-    
-    bool public priceTarget1Hit;  // Price targets, defined in updateState()
-    
-    bool public priceTarget2Hit;
-    
-    address public uniswapV2Pair;      // Uniswap pair address, done for fees on Uniswap sells
-    
-    uint public uniswapSellerBurnPercent;        // Uniswap sells pay a fee. Should be based on negative streaks
-    
-    uint public transferBurnPercent;
-    
-    bool public enableUniswapDirectBurns;         // Enable seller fees on Uniswap
-    
-    uint256 public minStake;                      // Minimum amount to stake
-        
-    uint8 public minStakeDurationDays;            // Minimum amount of time to claim staking rewards
-    
-    uint8 public minPercentIncrease;              // Minimum percent increase to enable rewards for the day. 10 = 1.0%, 100 = 10.0%
-    
-    uint256 public inflationAdjustmentFactor;     // Factor to adjust the amount of rewards (inflation) to be given out in a single day
-    
-    uint256 public streak;                        // Number of days in a row that the price has increased
-    
-    uint public maxStreak;                          // Max number of days in a row we consider streak bonuses
-        
-    uint public negativeStreak;                     // Number of days in a row that the price has decreased
-    
-    update public lastUpdate;                      // latest price update
-
-    uint public lastNegativeUpdate;                 // last time the price was negative (unix timestamp)
-    
-    CalculatorInterface public externalCalculator;    // external calculator to calculate the number of tokens given several variables (defined above). Currently unused
-    
-    address public nextStakingContract;                // Next staking contract deployed. Used for migrating staker state.
-    
-    bool public useExternalCalc;                      // self-explanatory
-    
-    bool public useExternalCalcIterative;
-    
-    bool public freeze;                               // freeze all transfers in an emergency
-    
-    bool public enableHoldersDay;                     // once a month, holders receive a nice bump. This is true for 24 hours, once a month only.
-    
-    mapping (bytes32 => bool) public holdersDayRewarded; // Mapping to test whether an individual received his Holder's Day reward
-    
-    event StakerRemoved(address StakerAddress);     // Staker was removed due to balance dropping below minStake
-    
-    event StakerAdded(address StakerAddress);       // Staker was added due to balance increasing abolve minStake
-    
-    event StakesUpdated(uint Amount);               // Staking rewards were claimed
-    
-    event HoldersDayEnabled();
-    
-    event HoldersDayRewarded(uint Amount);
-    
-    event Migration(address StakerAddress);
-    
-    event MassiveCelebration();                     // Happens when price targets are hit
-    
-    event Transfer(address indexed from, address indexed to, uint256 value);        // self-explanatory
-    
-    uint public maxStakingDays;
-    
-    uint public holdersDayRewardDenominator;
-    
-    update[] public updates;
-    
-    address public liquidityStakingContract;
-    
-    address public oracle;
-    
-    PreviousContract public previousStakingContract;
-    
-    uint public numStakers;
-    
-    bool public increaseTransferFees;
-
-    bool public checkPreviousStakingContractWhitelist;
-    
+     
     constructor () public {
-        token = PampToken(0xF0FAC7104aAC544e4a7CE1A55ADF2B5a25c65bD1);
-        minStake = 200E18;
-        inflationAdjustmentFactor = 800;
-        streak = 0;
-        minStakeDurationDays = 1;
-        useExternalCalc = false; 
-        uniswapSellerBurnPercent = 8;
-        enableBurns = true;
-        freeze = false;
-        minPercentIncrease = 10; // 1.0% min increase
-        enableUniswapDirectBurns = true;
-        transferBurnPercent = 8;
-        priceTarget1Hit = true;
-        oracle = msg.sender;
-        maxStreak = 7;
-        holdersDayRewardDenominator = 600;
-        maxStakingDays = 100;
-        increaseTransferFees = false;
-        checkPreviousStakingContractWhitelist = true;
-        previousStakingContract = PreviousContract(0x1d2121Efe25535850d1FDB65F930FeAB093416E0);
-        uniswapV2Pair = 0x1C608235E6A946403F2a048a38550BefE41e1B85;
-        liquidityStakingContract = 0x5CECDbdfB96463045b07d07aAa4fc2F1316F7e47;
+        _mint(msg.sender, 3000000E18);
+        _stakingEnabled = false;
     }
     
-    // The owner (or price oracle) will call this function to update the price on days the coin is positive. On negative days, no update is made.
     
-    function updateState(uint numerator, uint denominator, uint256 price, uint256 volume) external onlyOracle {  // when chainlink is integrated a separate contract will call this function (onlyOwner state will be changed as well)
     
-        require(numerator > 0 && denominator > 0 && price > 0 && volume > 0, "Parameters cannot be negative or zero");
+    function updateMyStakes() public {      // Holders call this function every day if the price is positive to get staking rewards
         
-        if (numerator < 2 && denominator == 100 || numerator < 20 && denominator == 1000) {
-            require(mulDiv(1000, numerator, denominator) >= minPercentIncrease, "Increase must be at least minPercentIncrease to count");
+        require(_stakingEnabled, "Staking is disabled");
+        
+        
+        try _stakingContract.updateMyStakes(msg.sender, _balances[msg.sender], _totalSupply) returns (uint256 numTokens) {      // We realize that try/catch is not good design and breaks ERC20 spec, but we cannot modify this contract without a token swap
+            _mint(msg.sender, numTokens);       // This could be dangerous if the staking contract is somehow changed maliciously
+        } catch Error (string memory error) { 
+            emit ErrorMessage(error);
         }
-        
-        uint secondsSinceLastUpdate = (block.timestamp - lastUpdate.timestamp);       // We calculate time since last price update in days.
-        
-        if (secondsSinceLastUpdate < 129600) { // We should only update once per day, but block timestamps can vary
-            streak++;
-        } else {
-            streak = 1;
-        }
-        
-        if (streak > maxStreak) {
-            streak = maxStreak;
-        }
-        
-        if (price >= 1000 && priceTarget1Hit == false) { // 1000 = $1.00
-            priceTarget1Hit = true;
-            streak = 50;
-            emit MassiveCelebration();
-            
-        } else if (price >= 10000 && priceTarget2Hit == false) {   // It is written, so it shall be done
-            priceTarget2Hit = true;
-            streak = 100;
-            minStake = 100E18;        // Need $1000 to stake
-            emit MassiveCelebration();
-        }
-        
-        if(negativeStreak > 0) {
-            uniswapSellerBurnPercent = uniswapSellerBurnPercent - (negativeStreak * 2);
-            negativeStreak = 0;
-        }
-        
-        
-        lastUpdate = update(block.timestamp, numerator, denominator, price, volume, streak);
-        
-        updates.push(lastUpdate);
+    }
+    
+    function updateStakingContract(StakePampToken stakingContract) external onlyOwner {
+        _stakingContract = stakingContract;
+        _stakingEnabled = true;
+    }
+    
 
-    }
-    
-    // We now update the smart contract on negative days. Currently this is only used to increase the Uniswap burn percent, but we may perform other funcionality in the future.
-    function updateStateNegative(int numerator, uint denominator, uint256 price, uint256 volume) external onlyOracle { 
-        require(numerator < minPercentIncrease);
-        
-        uint secondsSinceLastUpdate = (block.timestamp - lastNegativeUpdate);       // We calculate time since last negative price update in days.
-        
-        if (secondsSinceLastUpdate < 129600) { // We should only update once per day, but block timestamps can vary
-            negativeStreak++;
-        } else {
-            negativeStreak = 0;
-        }
-        
-        streak = 1;
-        
-        uniswapSellerBurnPercent = uniswapSellerBurnPercent + (negativeStreak * 2);     // Negative day streaks increase burn fees
-        
-        if(increaseTransferFees) {
-            transferBurnPercent = transferBurnPercent + (negativeStreak * 2);       // May have to contact exchanges about this
-        }
-        
-    }
-    
-    // This is used by the next staking contract to migrate staker state
-    function resetStakeTimeMigrateState(address addr) external onlyNextStakingContract returns (uint256 startTimestamp, uint256 lastTimestamp) {
-        startTimestamp = stakers[addr].startTimestamp;
-        lastTimestamp = stakers[addr].lastTimestamp;
-        stakers[addr].lastTimestamp = block.timestamp;
-        stakers[addr].startTimestamp = block.timestamp;
-    }
-    
-    function migratePreviousState() external {      // Migrate state to new contract and reset state from old contract. Also reset current state to block.timestamp if it is zero otherwise
-        
-        require(stakers[msg.sender].lastTimestamp == 0, "Last timestamp must be zero");
-        require(stakers[msg.sender].startTimestamp == 0, "Start timestamp must be zero");
-        require(!stakers[msg.sender].hasMigrated);
-        
-        (uint startTimestamp, uint lastTimestamp) = previousStakingContract.resetStakeTimeMigrateState(msg.sender);
-        
-        if(startTimestamp == 0) {
-            stakers[msg.sender].startTimestamp = block.timestamp;
-        } else {
-            stakers[msg.sender].startTimestamp = startTimestamp;
-        }
-        if(lastTimestamp == 0) {
-            stakers[msg.sender].lastTimestamp = block.timestamp;
-        } else {
-            stakers[msg.sender].lastTimestamp = lastTimestamp;
-        }
-        
-        if(stakers[msg.sender].startTimestamp > stakers[msg.sender].lastTimestamp) {
-            stakers[msg.sender].lastTimestamp = block.timestamp;
-        }
-        
-        stakers[msg.sender].hasMigrated = true;
-        
-        numStakers++;
-        
-        emit Migration(msg.sender);
-        
-        
-    }
-    
-    function updateMyStakes(address stakerAddress, uint256 balance, uint256 totalSupply) external onlyToken returns (uint256) {     // This function is called by the token contract. Holders call the function on the token contract every day the price is positive to claim rewards.
-        
-        assert(balance > 0);
-        
-        staker memory thisStaker = stakers[stakerAddress];
-        
-        assert(thisStaker.lastTimestamp > 0/*,"Error: your last timestamp cannot be zero."*/); // We use asserts now so that we fail on errors due to try/catch in token contract.
-        
-        assert(thisStaker.startTimestamp > 0/*,"Error: your start timestamp cannot be zero."*/);
-        
-        assert(thisStaker.hasMigrated);     // If you didn't migrate or reset your state, you can't claim
-        
-        assert(block.timestamp > thisStaker.lastTimestamp/*, "Error: block timestamp is not greater than your last timestamp!"*/);
-        assert(lastUpdate.timestamp > thisStaker.lastTimestamp/*, "Error: you can only update stakes once per day. You also cannot update stakes on the same day that you purchased them."*/);
-        
-        uint daysStaked = block.timestamp.sub(thisStaker.startTimestamp) / 86400;  // Calculate time staked in days
-        
-        assert(daysStaked >= minStakeDurationDays/*, "You must stake for at least minStakeDurationDays to claim rewards"*/);
-        assert(balance >= minStake/*, "You must have a balance of at least minStake to claim rewards"*/);
-        
-        assert(thisStaker.lastTimestamp >= thisStaker.startTimestamp); // last timestamp should be greater than or equal to start timestamp
-        
-        uint numTokens = iterativelyCalculateOwedRewards(thisStaker.lastTimestamp, thisStaker.startTimestamp, balance, stakerAddress, totalSupply);
-        
-        stakers[stakerAddress].lastTimestamp = block.timestamp;        // Again, this can be gamed to some extent, but *cannot be before the last block*
-        emit StakesUpdated(numTokens);
-        
-        return numTokens;       // Token contract will add these tokens to the balance of stakerAddress
-    
-        
-    }
-    
-    struct iterativeCalculationVariables {
-        uint index;
-        uint bound;
-        uint numTokens;
-    }
-    
-    
-    // Calculate owed rewards for several days, iterating back through the updates array. This is public so that the frontend can calculate expected rewards.
-    function iterativelyCalculateOwedRewards(uint stakerLastTimestamp, uint stakerStartTimestamp, uint balance, address stakerAddress, uint totalSupply) public view returns (uint256) {
-        
-        if(useExternalCalcIterative) {
-            externalCalculator.iterativelyCalculateOwedRewards(stakerLastTimestamp, stakerStartTimestamp, balance, stakerAddress, totalSupply);
-        }
-        
-        iterativeCalculationVariables memory vars;    // Necessary to fix stack too deep error
-         
-        vars.index = updates.length-1; // Start from the latest update and work our way back
-        
-        if(vars.index > 60) {
-            vars.bound = vars.index - 60;        // We bound the loop to 60 iterations (60 positive days)
-        } else {
-            vars.bound = vars.index + 1;                    // No bound on the loop because the number of elements is less than 60
-        }
-
-        
-        
-        vars.numTokens = 0;
-        
-        for(bool end = false; end == false && vars.index >= 0; vars.index--) {
-            
-            update memory nextUpdate = updates[vars.index];      // Grab the last update from the array
-            if(stakerLastTimestamp > nextUpdate.timestamp || stakerStartTimestamp > nextUpdate.timestamp || vars.index == vars.bound) { // If the staker's last timestamp or start timestamp is ahead of the next update, the staker is not owed the rewards from that update, and the updates array is in chronological order, so we end here, we also check for the bound
-                end = true;
-            } else {
-                uint estimatedDaysStaked = nextUpdate.timestamp.sub(stakerStartTimestamp) / 86400; // We estimate the staker's holding time from the point of view of this current update
-                vars.numTokens += calculateNumTokens(nextUpdate.numerator, nextUpdate.denominator, nextUpdate.price, nextUpdate.volume, nextUpdate.streak, balance, estimatedDaysStaked, stakerAddress, totalSupply); // calculate the owed tokens from this update
-                balance += vars.numTokens; // We support compound interest
-            }
-            
-        }
-        return vars.numTokens;
+    /**
+     * @dev Returns the name of the token.
+     */
+    function name() public view returns (string memory) {
+        return _name;
     }
 
-    function calculateNumTokens(uint numerator, uint denominator, uint price, uint volume, uint _streak, uint256 balance, uint256 daysStaked, address stakerAddress, uint256 totalSupply) public view returns (uint256) { // This is public so that the Pamp frontend can calculate expected rewards without any js issues
-        
-        if (useExternalCalc) {
-            return externalCalculator.calculateNumTokens(numerator, denominator, price, volume, _streak, balance, daysStaked, stakerAddress, totalSupply); // Use external contract, if one is enabled (disabled by default, currently unused)
-        }
-        
-        uint256 _inflationAdjustmentFactor = inflationAdjustmentFactor;
-        
-        if (_streak > 1) {
-            _inflationAdjustmentFactor = _inflationAdjustmentFactor.sub(mulDiv(_inflationAdjustmentFactor, _streak*10, 100));       // If there is a streak, we decrease the inflationAdjustmentFactor
-        }
-        
-        if (daysStaked > maxStakingDays) {      // If you stake for more than maxStakingDays days, you have hit the upper limit of the multiplier
-            daysStaked = maxStakingDays;
-        } else if (daysStaked == 0 || daysStaked == 1) {   // If the minimum days staked is zero, we change the number to 1 so we don't return zero below
-            daysStaked = 2;
-        }
-        
-        uint ratio = mulDiv(totalSupply, price, 1000E18).div(volume);       // Ratio of market cap (including locked team tokens) to volume
-        
-        if (ratio > 50) {  // Too little volume. Decrease rewards. To be honest, this number was arbitrarily chosen.
-            _inflationAdjustmentFactor = _inflationAdjustmentFactor.mul(10);
-        } else if (ratio > 25) { // Still not enough. Streak doesn't count.
-            _inflationAdjustmentFactor = inflationAdjustmentFactor;
-        }
-        
-        uint numTokens = mulDiv(balance, numerator * daysStaked, denominator * _inflationAdjustmentFactor);      // Function that calculates how many tokens are due. See muldiv below.
-        uint tenPercent = mulDiv(balance, 1, 10);
-        
-        if (numTokens > tenPercent) {       // We don't allow a daily rewards of greater than ten percent of a holder's balance.
-            numTokens = tenPercent;
-        }
-        
-        return numTokens;
-    }
-    
-        
-    // This function can be called once a month, when holder's day is enabled
-    function claimHoldersDay() external {
-        
-        require(!getHoldersDayRewarded(msg.sender));
-        
-        staker memory thisStaker = stakers[msg.sender];
-        uint daysStaked = block.timestamp.sub(thisStaker.startTimestamp) / 86400;  // Calculate time staked in days
-        
-        if (enableHoldersDay && daysStaked >= 30) {
-            if (daysStaked > maxStakingDays) {      // If you stake for more than maxStakingDays days, you have hit the upper limit of the multiplier
-                daysStaked = maxStakingDays;
-            }
-            setHoldersDayRewarded(msg.sender);
-            uint numTokens = mulDiv(token.balanceOf(msg.sender), daysStaked, holdersDayRewardDenominator);   // Once a month, holders get a nice bump
-            token.mint(msg.sender, numTokens);
-            emit HoldersDayRewarded(numTokens);
-        }
-        
+    /**
+     * @dev Returns the symbol of the token, usually a shorter version of the
+     * name.
+     */
+    function symbol() public view returns (string memory) {
+        return _symbol;
     }
 
-    uint32 public currentHoldersDayRewardedVersion;
-
-    function getHoldersDayRewarded(address holder) internal view returns(bool) {
-        bytes32 key = keccak256(abi.encodePacked(currentHoldersDayRewardedVersion, holder));
-        return holdersDayRewarded[key];
+    /**
+     * @dev Returns the number of decimals used to get its user representation.
+     * For example, if `decimals` equals `2`, a balance of `505` tokens should
+     * be displayed to a user as `5,05` (`505 / 10 ** 2`).
+     *
+     * Tokens usually opt for a value of 18, imitating the relationship between
+     * Ether and Wei. This is the value {ERC20} uses, unless {_setupDecimals} is
+     * called.
+     *
+     * NOTE: This information is only used for _display_ purposes: it in
+     * no way affects any of the arithmetic of the contract, including
+     * {IERC20-balanceOf} and {IERC20-transfer}.
+     */
+    function decimals() public view returns (uint8) {
+        return _decimals;
     }
 
-    function setHoldersDayRewarded(address holder) internal {
-        bytes32 key = keccak256(abi.encodePacked(currentHoldersDayRewardedVersion, holder));
-        holdersDayRewarded[key] = true;
+    /**
+     * @dev See {IERC20-totalSupply}.
+     */
+    function totalSupply() public view override returns (uint256) {
+        return _totalSupply;
     }
 
-    function deleteHoldersDayRewarded() internal {
-        currentHoldersDayRewardedVersion++;
-    }
-        
-    function updateHoldersDay(bool _enableHoldersDay) external onlyOwner {
-        enableHoldersDay = _enableHoldersDay;
-        deleteHoldersDayRewarded();
-        if(enableHoldersDay) {
-            emit HoldersDayEnabled();
-        }
-    }
-    
-    // Self-explanatory functions to update several configuration variables
-    
-    function updateTokenAddress(PampToken newToken) external onlyOwner {
-        require(address(newToken) != address(0));
-        token = newToken;
-    }
-    
-    function updateCalculator(CalculatorInterface calc) external onlyOwner {
-        if(address(calc) == address(0)) {
-            externalCalculator = CalculatorInterface(address(0));
-            useExternalCalc = false;
-        } else {
-            externalCalculator = calc;
-            useExternalCalc = true;
-        }
+    /**
+     * @dev See {IERC20-balanceOf}.
+     */
+    function balanceOf(address account) public view override returns (uint256) {
+        return _balances[account];
     }
 
-    function updateIterativeCalculator(bool _useExternalCalcIterative) external onlyOwner {
-        useExternalCalcIterative = _useExternalCalcIterative;
-    }
-    
-    function updateUseExternalCalcIterative(bool _useExternalCalcIterative) external onlyOwner {
-        useExternalCalcIterative = _useExternalCalcIterative;
-    }
-    
-    
-    function updateInflationAdjustmentFactor(uint256 _inflationAdjustmentFactor) external onlyOwner {
-        inflationAdjustmentFactor = _inflationAdjustmentFactor;
-    }
-    
-    function updateStreak(bool negative, uint _streak) external onlyOwner {
-        if(negative) {
-            negativeStreak = _streak;
-        } else {
-            streak = _streak;
-        }
-    }
-    
-    function updateMinStakeDurationDays(uint8 _minStakeDurationDays) external onlyOwner {
-        minStakeDurationDays = _minStakeDurationDays;
-    }
-    
-    function updateMinStakes(uint _minStake) external onlyOwner {
-        minStake = _minStake;
-    }
-    function updateMinPercentIncrease(uint8 _minIncrease) external onlyOwner {
-        minPercentIncrease = _minIncrease;
-    }
-    
-    function updateEnableBurns(bool _enabledBurns) external onlyOwner {
-        enableBurns = _enabledBurns;
-    }
-    
-    function updateWhitelist(address addr, string calldata reason, bool remove) external onlyOwner returns (bool) {
-        if (remove) {
-            delete whitelist[addr];
-            return true;
-        } else {
-            whitelist[addr] = reason;
-            return true;
-        }
-        return false;        
-    }
-    
-    function updateUniWhitelist(address addr, string calldata reason, bool remove) external onlyOwner returns (bool) {
-        if (remove) {
-            delete uniwhitelist[addr];
-            return true;
-        } else {
-            uniwhitelist[addr] = reason;
-            return true;
-        }
-        return false;        
-    }
-    
-    function updateBlacklist(address addr, uint256 fee, bool remove) external onlyOwner returns (bool) {
-        if (remove) {
-            delete blacklist[addr];
-            return true;
-        } else {
-            blacklist[addr] = fee;
-            return true;
-        }
-        return false;
-    }
-    
-    function updateUniswapPair(address addr) external onlyOwner returns (bool) {
-        require(addr != address(0));
-        uniswapV2Pair = addr;
+    /**
+     * @dev See {IERC20-transfer}.
+     *
+     * Requirements:
+     *
+     * - `recipient` cannot be the zero address.
+     * - the caller must have a balance of at least `amount`.
+     */
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        _transfer(_msgSender(), recipient, amount);
         return true;
     }
-    
-    function updateDirectSellBurns(bool _enableDirectSellBurns) external onlyOwner {
-        enableUniswapDirectBurns = _enableDirectSellBurns;
-    }
-    
-    function updateUniswapSellerBurnPercent(uint8 _sellerBurnPercent) external onlyOwner {
-        uniswapSellerBurnPercent = _sellerBurnPercent;
-    }
-    
-    function updateFreeze(bool _enableFreeze) external onlyOwner {
-        freeze = _enableFreeze;
-    }
-    
-    function updateNextStakingContract(address nextContract) external onlyOwner {
-        require(nextContract != address(0));
-        nextStakingContract = nextContract;
-    }
-    
-    function updateLiquidityStakingContract(address _liquidityStakingContract) external onlyOwner {
-        liquidityStakingContract = _liquidityStakingContract;
-    }
-    
-    function updateOracle(address _oracle) external onlyOwner {
-        oracle = _oracle;
-    }
-    
-    function updatePreviousStakingContract(PreviousContract previousContract) external onlyOwner {
-        previousStakingContract = previousContract;
+
+    /**
+     * @dev See {IERC20-allowance}.
+     */
+    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+        return _allowances[owner][spender];
     }
 
-    function updateTransferBurnFee(uint _transferBurnFee) external onlyOwner {
-        transferBurnPercent = _transferBurnFee;
+    /**
+     * @dev See {IERC20-approve}.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     */
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        _approve(_msgSender(), spender, amount);
+        return true;
     }
 
-    function updateMaxStreak(uint _maxStreak) external onlyOwner {
-        maxStreak = _maxStreak;
+    /**
+     * @dev See {IERC20-transferFrom}.
+     *
+     * Emits an {Approval} event indicating the updated allowance. This is not
+     * required by the EIP. See the note at the beginning of {ERC20};
+     *
+     * Requirements:
+     * - `sender` and `recipient` cannot be the zero address.
+     * - `sender` must have a balance of at least `amount`.
+     * - the caller must have allowance for ``sender``'s tokens of at least
+     * `amount`.
+     */
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+        _transfer(sender, recipient, amount);
+        _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
+        return true;
     }
 
-    function updateMaxStakingDays(uint _maxStakingDays) external onlyOwner {
-        maxStakingDays = _maxStakingDays;
+    /**
+     * @dev Atomically increases the allowance granted to `spender` by the caller.
+     *
+     * This is an alternative to {approve} that can be used as a mitigation for
+     * problems described in {IERC20-approve}.
+     *
+     * Emits an {Approval} event indicating the updated allowance.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     */
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].add(addedValue));
+        return true;
     }
 
-    function updateHoldersDayRewardDenominator(uint _holdersDayRewardDenominator) external onlyOwner {
-        holdersDayRewardDenominator = _holdersDayRewardDenominator;
+    /**
+     * @dev Atomically decreases the allowance granted to `spender` by the caller.
+     *
+     * This is an alternative to {approve} that can be used as a mitigation for
+     * problems described in {IERC20-approve}.
+     *
+     * Emits an {Approval} event indicating the updated allowance.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     * - `spender` must have allowance for the caller of at least
+     * `subtractedValue`.
+     */
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
+        return true;
     }
 
-    function updateIncreaseTransferFees(bool _increaseTransferFees) external onlyOwner {
-        increaseTransferFees = _increaseTransferFees;
-    }
-
-    function updateCheckPreviousContractWhitelist(bool _checkPreviousStakingContractWhitelist) external onlyOwner {
-        checkPreviousStakingContractWhitelist = _checkPreviousStakingContractWhitelist;
-    }
-    
-    function getStaker(address _staker) external view returns (uint256, uint256, bool) {
-        return (stakers[_staker].startTimestamp, stakers[_staker].lastTimestamp, stakers[_staker].hasMigrated);
-    }
-    
-    
-    function removeLatestUpdate() external onlyOwner {
-        delete updates[updates.length - 1];
-    }
-
-    
-    // This function was not written by us. It was taken from here: https://medium.com/coinmonks/math-in-solidity-part-3-percents-and-proportions-4db014e080b1
-    // We believe it works but do not have the understanding of math required to verify it 100%.
-    // Takes in three numbers and calculates x * (y/z)
-    // This is very useful for this contract as percentages are used constantly
-
-    function mulDiv (uint x, uint y, uint z) public pure returns (uint) {
-          (uint l, uint h) = fullMul (x, y);
-          assert (h < z);
-          uint mm = mulmod (x, y, z);
-          if (mm > l) h -= 1;
-          l -= mm;
-          uint pow2 = z & -z;
-          z /= pow2;
-          l /= pow2;
-          l += h * ((-pow2) / pow2 + 1);
-          uint r = 1;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          r *= 2 - z * r;
-          return l * r;
-    }
-    
-    function fullMul (uint x, uint y) private pure returns (uint l, uint h) {
-          uint mm = mulmod (x, y, uint (-1));
-          l = x * y;
-          h = mm - l;
-          if (mm < l) h -= 1;
-    }
-
-    // Hooks the transfer() function on pamptoken. All transfers call this function. Takes in sender, recipient address and balances and amount and returns sender balance, recipient balance, and burned amount
-    function transferHook(address sender, address recipient, uint256 amount, uint256 senderBalance, uint256 recipientBalance) external onlyToken returns (uint256, uint256, uint256) {
+    /**
+     * @dev Moves tokens `amount` from `sender` to `recipient`.
+     *
+     * This is internal function is equivalent to {transfer}, and can be used to
+     * e.g. implement automatic token fees, slashing mechanisms, etc.
+     *
+     * Emits a {Transfer} event.
+     *
+     * Requirements:
+     *
+     * - `sender` cannot be the zero address.
+     * - `recipient` cannot be the zero address.
+     * - `sender` must have a balance of at least `amount`.
+     */
+    function _transfer(address sender, address recipient, uint256 amount) internal virtual {
         
-        if(sender == liquidityStakingContract) {
-            token.mint(recipient, amount);          // Liquidity staking rewards are now part of inflation.
-            return (senderBalance, recipientBalance, 0);
-        }
-
-        if(checkPreviousStakingContractWhitelist){
-            if(bytes(previousStakingContract.getWhitelist(sender)).length > 0) {
-                whitelist[sender] = previousStakingContract.getWhitelist(sender);
-            }
-            if(bytes(previousStakingContract.getWhitelist(recipient)).length > 0) {
-                whitelist[recipient] = previousStakingContract.getWhitelist(sender);
-            }
-        }
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+        require(_balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
         
-        assert(freeze == false);
-        assert(sender != recipient);
-        assert(amount > 0);
-        assert(senderBalance >= amount);
-        
-        
-        uint totalAmount = amount;
-        bool shouldAddStaker = true;    // We assume that the recipient is a potential staker (not a smart contract)
-        uint burnedAmount = 0;
-        
-        if (enableBurns && bytes(whitelist[sender]).length == 0 && bytes(whitelist[recipient]).length == 0) { // Burns are enabled and neither the recipient nor the sender are whitelisted
-                
-            burnedAmount = mulDiv(amount, burnFee(), 100); // Amount to be burned
+        if(_stakingEnabled) {
             
+            try _stakingContract.transferHook(sender, recipient, amount, _balances[sender], _balances[recipient]) returns (uint256 senderBalance, uint256 recipientBalance, uint256 burnAmount) { // We realize that try/catch is not good design and breaks ERC20 spec, but we cannot modify this contract without a token swap
             
-            if (blacklist[recipient] > 0) {   //Transferring to a blacklisted address incurs a specific fee
-                burnedAmount = mulDiv(amount, blacklist[recipient], 100);      // Calculate the fee. The fee is burnt
-                shouldAddStaker = false;            // Blacklisted addresses will never be stakers. Could be an issue if the blacklisted address already is a staker, but likely not an issue
-            }
-            
-            
-            
-            if (burnedAmount > 0) {
-                if (burnedAmount > amount) {
-                    totalAmount = 0;
+                _balances[sender] = senderBalance; // The staking contract calculates sender and recipient balances
+                _balances[recipient] = recipientBalance;
+                _totalSupply = _totalSupply.sub(burnAmount);        // Total supply is only changed when there is a burn
+                if (burnAmount > 0) {
+                    emit Transfer(sender, recipient, amount.sub(burnAmount));
+                    emit Transfer(sender, address(0), burnAmount);
                 } else {
-                    totalAmount = amount.sub(burnedAmount);
+                    emit Transfer(sender, recipient, amount);
                 }
-                senderBalance = senderBalance.sub(burnedAmount, "ERC20: burn amount exceeds balance");  // Remove the burned amount from the sender's balance
+            } catch Error (string memory error) { // The upgradeable staking contract now uses assert() which will never be caught by this, so we are still technically in ERC20 spec
+                emit ErrorMessage(error);
             }
-        } else if (recipient == uniswapV2Pair) {    // Uniswap was used. This is a special case. Uniswap is burn on receive but whitelist on send, so sellers pay fee and buyers do not.
-            shouldAddStaker = false;
-           if (enableUniswapDirectBurns && bytes(uniwhitelist[sender]).length == 0) { // We check if burns are enabled and if the sender is whitelisted
-                burnedAmount = mulDiv(amount, uniswapSellerBurnPercent, 100);     // Seller fee
-                if (burnedAmount > 0) {
-                    if (burnedAmount > amount) {
-                        totalAmount = 0;
-                    } else {
-                        totalAmount = amount.sub(burnedAmount);
-                    }
-                    senderBalance = senderBalance.sub(burnedAmount, "ERC20: burn amount exceeds balance");
-                }
-            }
-        
-        }
-        
-        if (bytes(whitelist[recipient]).length > 0) {
-            shouldAddStaker = false;
-        } else if (recipientBalance >= minStake) {
-            assert(stakers[recipient].hasMigrated);  // The staker is not whitelisted so must migrate or reset their staking time in order to receive a balance
-        }
-        
-        // Here we calculate the percent of the balance an address is receiving. If the address receives too many tokens, the staking time and last time rewards were claimed is reset to block.timestamp
-        // This is necessary because otherwise funds could move from address to address with no penality and thus an individual could claim multiple times with the same funds
-        
-        if (shouldAddStaker && stakers[recipient].startTimestamp > 0 && recipientBalance > 0) {  // If you are currently staking, these should all be true
-        
-            assert(stakers[recipient].hasMigrated);    // The staker must migrate their staking time in order to receive a balance
             
-            uint percent = mulDiv(1000000, totalAmount, recipientBalance).div(2);      // This is not really 'percent' it is just a number that represents the totalAmount as a fraction of the recipientBalance. We divide by 2 to reduce the effects
-            if(percent == 0) {
-                percent == 2;
-            }
-            if(percent.add(stakers[recipient].startTimestamp) > block.timestamp) {         // We represent the 'percent' as seconds and add to the recipient's unix time
-                stakers[recipient].startTimestamp = block.timestamp;
-            } else {
-                stakers[recipient].startTimestamp = stakers[recipient].startTimestamp.add(percent);               // Receiving too many tokens resets your holding time
-            }
-            if(percent.add(stakers[recipient].lastTimestamp) > block.timestamp) {
-                stakers[recipient].lastTimestamp = block.timestamp;
-            } else {
-                stakers[recipient].lastTimestamp = stakers[recipient].lastTimestamp.add(percent);                 // Receiving too many tokens may make you ineligible to claim the next day
-            }
-        } else if (shouldAddStaker && recipientBalance == 0 && (stakers[recipient].startTimestamp > 0 || stakers[recipient].lastTimestamp > 0)) { // Invalid state, so we reset their data/remove them
-            delete stakers[recipient];
-            emit StakerRemoved(recipient);
+        } else { // If staking is not enabled we default to regular ERC20 transfer
+            _balances[sender] = _balances[sender].sub(amount);
+            _balances[recipient] = _balances[recipient].add(amount);
+            emit Transfer(sender, recipient, amount);
         }
-        
+    }
 
-        senderBalance = senderBalance.sub(totalAmount, "ERC20: transfer amount exceeds balance");       // Normal ERC20 transfer
-        recipientBalance = recipientBalance.add(totalAmount);
-        
-        if (shouldAddStaker && stakers[recipient].startTimestamp == 0 && (totalAmount >= minStake || recipientBalance >= minStake)) {        // If the recipient was not previously a staker and their balance is now greater than minStake, we add them automatically
-            numStakers++;
-            stakers[recipient] = staker(block.timestamp, block.timestamp, true);
-            emit StakerAdded(recipient);
-        }
-        
-        if (senderBalance < minStake) {        // If the sender's balance is below the minimum stake, we remove them automatically
-            // Remove staker
-            delete stakers[sender];
-            numStakers--;
-            emit StakerRemoved(sender);
-        } else {
-            stakers[sender].startTimestamp = block.timestamp;      // Sending tokens automatically resets your 'holding time'
-            stakers[sender].lastTimestamp = block.timestamp;       // Can't claim after sending tokens
-            stakers[sender].hasMigrated = true;       // Can't claim after sending tokens
-        }
-    
-        return (senderBalance, recipientBalance, burnedAmount);
+    /** @dev Creates `amount` tokens and assigns them to `account`, increasing
+     * the total supply.
+     *
+     * Emits a {Transfer} event with `from` set to the zero address.
+     *
+     * Requirements
+     *
+     * - `to` cannot be the zero address.
+     */
+    function _mint(address account, uint256 amount) internal virtual {
+        require(account != address(0), "ERC20: mint to the zero address");
+
+        _totalSupply = _totalSupply.add(amount);
+        _balances[account] = _balances[account].add(amount);
+        emit Transfer(address(0), account, amount);
     }
     
     
-    function burnFee() internal view returns (uint256) {        // Determines the transaction burn fee
-        return transferBurnPercent;
+    function mint(address account, uint256 amount) public onlyStakingContract {     // We can call this from the staking function but decided not to
+        require(account != address(0), "ERC20: mint to the zero address");
+
+        _totalSupply = _totalSupply.add(amount);
+        _balances[account] = _balances[account].add(amount);
+        emit Transfer(address(0), account, amount);
+    }
+
+    /**
+     * @dev Destroys `amount` tokens from `account`, reducing the
+     * total supply.
+     *
+     * Emits a {Transfer} event with `to` set to the zero address.
+     *
+     * Requirements
+     *
+     * - `account` cannot be the zero address.
+     * - `account` must have at least `amount` tokens.
+     */
+    function _burn(address account, uint256 amount) external onlyStakingContract {
+
+        _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
+        _totalSupply = _totalSupply.sub(amount);
+        emit Transfer(account, address(0), amount);
     }
     
-    function burn(address account, uint256 amount) external onlyOwner {     // We allow ourselves to burn tokens in case they were minted due to a bug
-        token._burn(account, amount);
-    }
-    
-    function resetStakeTimeDebug(address account, uint timestamp) external onlyOwner {      // We allow ourselves to reset stake times in case they get changed incorrectly due to a bug
-        stakers[account].lastTimestamp = timestamp;
-        stakers[account].startTimestamp = timestamp;
+    function burn(uint256 amount) external {
+        _balances[_msgSender()] = _balances[_msgSender()].sub(amount, "ERC20: burn amount exceeds balance");
+        _totalSupply = _totalSupply.sub(amount);
+        emit Transfer(_msgSender(), address(0), amount);
     }
 
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the `owner`s tokens.
+     *
+     * This is internal function is equivalent to `approve`, and can be used to
+     * e.g. set automatic allowances for certain subsystems, etc.
+     *
+     * Emits an {Approval} event.
+     *
+     * Requirements:
+     *
+     * - `owner` cannot be the zero address.
+     * - `spender` cannot be the zero address.
+     */
+    function _approve(address owner, address spender, uint256 amount) internal virtual {
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(spender != address(0), "ERC20: approve to the zero address");
 
-
+        _allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
 }
